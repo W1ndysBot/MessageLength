@@ -81,6 +81,9 @@ async def check_message_length(websocket, group_id, raw_message, message_id):
     try:
         length = load_message_length(group_id)
         if len(raw_message) > length:
+            logging.info(
+                f"--------\n检测到消息长度为{len(raw_message)}，超过{length}, 删除消息 {message_id}\n--------"
+            )
             await delete_msg(websocket, message_id)
     except Exception as e:
         logging.error(f"检测消息长度失败: {e}")
@@ -115,14 +118,19 @@ async def handle_MessageLength_group_message(websocket, msg):
         authorized = user_id in owner_id
 
         # 是否是开启命令
-        if raw_message.startswith("ml"):
+        if raw_message == "ml":
             await toggle_function_status(websocket, group_id, message_id, authorized)
-        else:
+            return
+
+        # 检测开关状态
+        if load_function_status(group_id):
             # 鉴权，如果是管理员，则设定消息长度,否则检测消息长度
             if authorized:
                 await set_message_length(websocket, group_id, raw_message, message_id)
             else:
                 await check_message_length(websocket, group_id, raw_message, message_id)
+        else:
+            return
 
     except Exception as e:
         logging.error(f"处理MessageLength群消息失败: {e}")
