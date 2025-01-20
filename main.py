@@ -33,7 +33,7 @@ def save_function_status(group_id, status):
 
 
 # 处理元事件，用于启动时确保数据目录存在
-async def handle_meta_event(websocket, msg):
+async def handle_MessageLength_meta_event(websocket, msg):
     os.makedirs(DATA_DIR, exist_ok=True)
 
 
