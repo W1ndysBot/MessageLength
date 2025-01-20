@@ -3,6 +3,7 @@
 import logging
 import os
 import sys
+import re
 
 # 添加项目根目录到sys.path
 sys.path.append(
@@ -63,6 +64,44 @@ async def toggle_function_status(websocket, group_id, message_id, authorized):
         )
 
 
+# 保存消息长度
+def save_message_length(group_id, length):
+    with open(os.path.join(DATA_DIR, f"{group_id}.txt"), "w") as f:
+        f.write(str(length))
+
+
+# 加载消息长度
+def load_message_length(group_id):
+    with open(os.path.join(DATA_DIR, f"{group_id}.txt"), "r") as f:
+        return int(f.read())
+
+
+# 检测消息长度
+async def check_message_length(websocket, group_id, raw_message, message_id):
+    try:
+        length = load_message_length(group_id)
+        if len(raw_message) > length:
+            await delete_msg(websocket, message_id)
+    except Exception as e:
+        logging.error(f"检测消息长度失败: {e}")
+
+
+# 设定消息长度
+async def set_message_length(websocket, group_id, raw_message, message_id):
+    try:
+        match = re.match(r"mlset(\d+)", raw_message)
+        if match:
+            length = match.group(1)
+            save_message_length(group_id, length)
+            await send_group_msg(
+                websocket,
+                group_id,
+                f"[CQ:reply,id={message_id}]消息长度已设定为{length}",
+            )
+    except Exception as e:
+        logging.error(f"设定消息长度失败: {e}")
+
+
 # 群消息处理函数
 async def handle_MessageLength_group_message(websocket, msg):
     # 确保数据目录存在
@@ -76,11 +115,15 @@ async def handle_MessageLength_group_message(websocket, msg):
         authorized = user_id in owner_id
 
         # 是否是开启命令
-        if raw_message.startswith("ex"):
+        if raw_message.startswith("ml"):
             await toggle_function_status(websocket, group_id, message_id, authorized)
         else:
-            # 其他处理函数
-            pass
+            # 鉴权，如果是管理员，则设定消息长度,否则检测消息长度
+            if authorized:
+                await set_message_length(websocket, group_id, raw_message, message_id)
+            else:
+                await check_message_length(websocket, group_id, raw_message, message_id)
+
     except Exception as e:
         logging.error(f"处理MessageLength群消息失败: {e}")
         await send_group_msg(
